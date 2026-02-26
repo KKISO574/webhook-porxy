@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+venv/
+.idea/
+.DS_Store
+*.log
+*.sqlite3
+*.db
+*.bak
+*.tmp
+*.swp
+*.swo
+*.zip
+*.tar.gz
