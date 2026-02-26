@@ -2,13 +2,10 @@ version: '3.8'
 
 services:
   webhook:
-    build:
-      context: .                     # 当前目录构建
-      dockerfile: Dockerfile
-    container_name: webhook-proxy
+    container_name: webhook-proxy:latest
     restart: unless-stopped          # 崩溃自动重启，除非手动 stop
     ports:
-      - "1090:8000"                  # 本地端口映射，可改成其他端口
+      - "8000:8000"                  # 本地端口映射，可改成其他端口
     env_file:
       - .env                         # 自动加载 .env 中的变量
     volumes:

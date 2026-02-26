@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import logging
 from datetime import datetime
 
-# 日志配置（输出到终端，便于本地测试）
+# 日志配置（输出到终端，便于本地测试和调试）
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
@@ -44,6 +44,9 @@ async def receive_and_forward(request: Request):
         ts = payload.get("timestamp", 0)
         time_str = timestamp_to_str(ts)
 
+        # 定义换行符变量，避免 f-string 表达式中出现反斜杠
+        newline = '\n'
+
         content = ""
         msgtype = "markdown"  # 优先使用 markdown
 
@@ -62,7 +65,7 @@ async def receive_and_forward(request: Request):
         elif msg_type == "cslog":
             # CS2 更新公告
             summary_text = data.get("summary", {}).get("text", "").strip()
-            detail_text = data.get("detail", {}).get("text", "").strip()[:800]  # 限制长度
+            detail_text = data.get("detail", {}).get("text", "").strip()[:800]
 
             paged_info = ""
             paged = data.get("paged", {})
@@ -70,20 +73,17 @@ async def receive_and_forward(request: Request):
                 first_page = paged["pages"][0]
                 page_title = first_page.get("moduleTitle", "模块")
                 page_text = first_page.get("text", "").strip()
-                paged_info = (
-                    f"**第一页 - {page_title}**\n"
-                    f"{page_text.replace('\n', '\n  ')}"  # 强制缩进
-                )
+                paged_info = f"**第一页 - {page_title}**\n{page_text.replace(newline, newline + '  ')}"
 
             # 规范 Markdown 语法
             content = (
                 f"**{title}**\n\n"
                 f"**时间**：{time_str}\n\n"
                 f"**总结**\n"
-                f"{summary_text.replace('\n', '\n  ')}\n\n"  # 列表缩进
+                f"  {summary_text.replace(newline, newline + '  ')}\n\n"
                 f"{paged_info}\n\n"
                 f"**详情预览**\n"
-                f"{detail_text.replace('\n', '\n  ')}...\n\n"
+                f"  {detail_text.replace(newline, newline + '  ')}...\n\n"
                 f"[查看完整公告]({url})"
             )
 
@@ -119,7 +119,7 @@ async def receive_and_forward(request: Request):
                 # "mentioned_mobile_list": ["138xxxxxxxx"]
             }
 
-        # 调试：打印最终发送的内容
+        # 调试：打印最终发送的内容（方便排查格式问题）
         logger.info(
             f"即将发送到企业微信（类型: {msgtype}，长度: {len(content.encode('utf-8'))} 字节）:\n"
             f"{content}\n"
