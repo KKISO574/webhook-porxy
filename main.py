@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
+import re
 
 # 日志配置（输出到终端，便于本地测试和调试）
 logging.basicConfig(
@@ -21,6 +22,19 @@ WECHAT_WEBHOOK_URL = os.getenv("WECHAT_WEBHOOK_URL")
 if not WECHAT_WEBHOOK_URL:
     raise ValueError("缺少环境变量 WECHAT_WEBHOOK_URL，请在 .env 文件中设置")
 
+
+def env_flag(name: str, default: bool = True) -> bool:
+    """读取布尔环境变量。"""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+SHOW_CSLOG_SUMMARY = env_flag("SHOW_CSLOG_SUMMARY", True)
+SHOW_CSLOG_PAGED = env_flag("SHOW_CSLOG_PAGED", True)
+SHOW_CSLOG_DETAIL = env_flag("SHOW_CSLOG_DETAIL", True)
+
 def timestamp_to_str(ts: int) -> str:
     """将毫秒或秒时间戳转换为可读格式"""
     if ts > 1e12:  # 毫秒时间戳
@@ -29,6 +43,138 @@ def timestamp_to_str(ts: int) -> str:
         return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return "未知时间"
+
+
+def clean_markdown_text(text: str) -> str:
+    """清理上游 Markdown，尽量保留可读性并兼容企业微信。"""
+    if not text:
+        return ""
+
+    cleaned_lines = []
+    for raw_line in text.replace("\r\n", "\n").split("\n"):
+        line = raw_line.strip()
+        if not line:
+            cleaned_lines.append("")
+            continue
+
+        # 去掉标题井号，避免多层 Markdown 在企业微信里显示怪异
+        line = re.sub(r"^#{1,6}\s*", "", line)
+        # 统一列表符号，减少花样符号导致的视觉噪音
+        line = re.sub(r"^[*-]\s+", "• ", line)
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines).strip()
+
+
+def remove_redundant_heading(text: str, heading: str) -> str:
+    """移除内容里与外层模块同名的首行标题，避免重复展示。"""
+    cleaned = clean_markdown_text(text)
+    if not cleaned:
+        return ""
+
+    lines = cleaned.split("\n")
+    first_line = lines[0].strip(" :：")
+    if first_line == heading.strip(" :："):
+        return "\n".join(lines[1:]).strip()
+    return cleaned
+
+
+def indent_multiline(text: str) -> str:
+    """为多行内容增加缩进，让企业微信 markdown 更易读。"""
+    cleaned = clean_markdown_text(text)
+    if not cleaned:
+        return "暂无内容"
+    return "\n".join(f"> {line}" if line else ">" for line in cleaned.split("\n"))
+
+
+def truncate_utf8(text: str, max_bytes: int) -> str:
+    """按 UTF-8 字节长度截断，避免企业微信 markdown 超限。"""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+
+    truncated = encoded[:max_bytes]
+    while True:
+        try:
+            return truncated.decode("utf-8").rstrip() + "\n> ...内容已截断"
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+
+
+def resolve_cslog_sections(data: dict) -> dict[str, bool]:
+    """根据环境变量和 payload.viewTypes 决定输出哪些模块。"""
+    requested_types = {
+        str(item).strip().lower()
+        for item in (data.get("viewTypes") or [])
+        if str(item).strip()
+    }
+
+    has_request_filter = bool(requested_types)
+    return {
+        "summary": SHOW_CSLOG_SUMMARY and (not has_request_filter or "summary" in requested_types),
+        "paged": SHOW_CSLOG_PAGED and (not has_request_filter or "paged" in requested_types),
+        "detail": SHOW_CSLOG_DETAIL and (not has_request_filter or "detail" in requested_types),
+    }
+
+
+def build_cslog_content(title: str, url: str, time_str: str, data: dict) -> tuple[str, str]:
+    """构造更适合企业微信阅读的 CSLog 消息。"""
+    summary_text = remove_redundant_heading(data.get("summary", {}).get("text", "").strip(), "总结")
+    detail_text = remove_redundant_heading(data.get("detail", {}).get("text", "").strip(), "详情")
+    enabled_sections = resolve_cslog_sections(data)
+
+    paged = data.get("paged", {})
+    pages = paged.get("pages", []) or []
+    page_blocks = []
+    for page in pages:
+        page_index = page.get("pageIndex", "?")
+        page_count = page.get("pageCount") or paged.get("pageCount") or len(pages) or "?"
+        module_title = page.get("moduleTitle", "未命名模块")
+        module_text = indent_multiline(remove_redundant_heading(page.get("text", ""), module_title))
+        page_blocks.append(
+            f"**模块 {page_index}/{page_count} · {module_title}**\n"
+            f"{module_text}"
+        )
+
+    paged_text = "\n\n".join(page_blocks) if page_blocks else "暂无模块内容"
+
+    markdown_sections = [
+        f"**{title}**\n\n"
+        f"**时间**：{time_str}\n"
+        f"**来源**：FKBUFF CSLog"
+    ]
+    text_sections = [
+        f"{title}\n"
+        f"时间：{time_str}\n"
+        f"来源：FKBUFF CSLog"
+    ]
+
+    if enabled_sections["summary"]:
+        markdown_sections.append(f"**总结**\n{indent_multiline(summary_text)}")
+        text_sections.append(f"【总结】\n{clean_markdown_text(summary_text) or '暂无内容'}")
+
+    if enabled_sections["paged"]:
+        markdown_sections.append(f"**详细模块**\n{paged_text}")
+        text_sections.append(f"【详细模块】\n{clean_markdown_text(chr(10).join(page_blocks)) or '暂无内容'}")
+
+    if enabled_sections["detail"]:
+        markdown_sections.append(f"**详细**\n{indent_multiline(detail_text)}")
+        text_sections.append(f"【详细】\n{clean_markdown_text(detail_text) or '暂无内容'}")
+
+    if not any(enabled_sections.values()):
+        markdown_sections.append("> 当前未启用任何 cslog 模块")
+        text_sections.append("【提示】\n当前未启用任何 cslog 模块")
+
+    markdown_sections.append(f"[查看原文]({url})")
+    text_sections.append(f"查看原文：{url}")
+
+    markdown_content = "\n\n".join(markdown_sections)
+
+    if len(markdown_content.encode("utf-8")) <= 3800:
+        return "markdown", markdown_content
+
+    text_content = "\n\n".join(text_sections)
+    return "text", truncate_utf8(text_content, 3800)
 
 @app.post("/webhook/incoming")
 async def receive_and_forward(request: Request):
@@ -41,11 +187,8 @@ async def receive_and_forward(request: Request):
         text = payload.get("text", "").strip()
         url = payload.get("url", "")
         data = payload.get("data", {})
-        ts = payload.get("timestamp", 0)
+        ts = payload.get("timestamp") or data.get("publishedAt", 0)
         time_str = timestamp_to_str(ts)
-
-        # 定义换行符变量，避免 f-string 表达式中出现反斜杠
-        newline = '\n'
 
         content = ""
         msgtype = "markdown"  # 优先使用 markdown
@@ -63,39 +206,8 @@ async def receive_and_forward(request: Request):
             )
 
         elif msg_type == "cslog":
-            # CS2 更新公告
-            summary_text = data.get("summary", {}).get("text", "").strip()
-            detail_text = data.get("detail", {}).get("text", "").strip()[:800]
-
-            paged_info = ""
-            paged = data.get("paged", {})
-            if paged.get("pages"):
-                first_page = paged["pages"][0]
-                page_title = first_page.get("moduleTitle", "模块")
-                page_text = first_page.get("text", "").strip()
-                paged_info = f"**第一页 - {page_title}**\n{page_text.replace(newline, newline + '  ')}"
-
-            # 规范 Markdown 语法
-            content = (
-                f"**{title}**\n\n"
-                f"**时间**：{time_str}\n\n"
-                f"**总结**\n"
-                f"  {summary_text.replace(newline, newline + '  ')}\n\n"
-                f"{paged_info}\n\n"
-                f"**详情预览**\n"
-                f"  {detail_text.replace(newline, newline + '  ')}...\n\n"
-                f"[查看完整公告]({url})"
-            )
-
-            # 如果内容太长，降级为纯文本
-            if len(content.encode('utf-8')) > 3800:
-                msgtype = "text"
-                content = (
-                    f"{title}\n"
-                    f"时间：{time_str}\n\n"
-                    f"{summary_text[:1000]}...\n\n"
-                    f"[查看详情]({url})"
-                )
+            # CS2 更新公告：完整输出总结、模块详情、全文详情
+            msgtype, content = build_cslog_content(title, url, time_str, data)
 
         else:
             # 未知类型
