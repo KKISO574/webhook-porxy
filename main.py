@@ -336,6 +336,16 @@ def parse_created_at(value: Any) -> datetime:
         return datetime.min
 
 
+def format_inventory_time(value: Any) -> str:
+    """把库存动态时间格式化成企业微信里更好扫读的格式。"""
+    parsed = parse_created_at(value)
+    if parsed != datetime.min:
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
+    if value:
+        return str(value).replace("T", " ")
+    return "未知时间"
+
+
 def describe_tradable(value: Any) -> str:
     if str(value) == "1":
         return "可交易"
@@ -358,13 +368,28 @@ def describe_trade_type(value: Any) -> str:
     return labels.get(raw, f"动态类型 {raw}")
 
 
-def format_inventory_request_params(task: InventoryTaskConfig, page_range: str) -> str:
-    search = task.search if task.search else "空"
-    request_type = describe_trade_type(task.type)
-    return (
-        f"page_index={page_range}, page_size={task.page_size}, "
-        f"task_id={task.task_id}, search={search}, type={task.type}({request_type})"
-    )
+def inventory_type_color(value: Any) -> str:
+    """企业微信 markdown 支持 info/comment/warning 三种字体颜色。"""
+    colors = {
+        "0": "comment",
+        "4": "warning",
+        "5": "info",
+        "7": "warning",
+    }
+    return colors.get(str(value), "comment")
+
+
+def color_text(text: str, color: str) -> str:
+    return f'<font color="{color}">{text}</font>'
+
+
+def format_inventory_filter_summary(task: InventoryTaskConfig) -> str:
+    filters = []
+    if task.search:
+        filters.append(f"搜索：{clean_markdown_text(task.search)}")
+    if task.type != "ALL":
+        filters.append(f"类型：{describe_trade_type(task.type)}")
+    return " | ".join(filters)
 
 
 def format_inventory_markdown(
@@ -375,31 +400,38 @@ def format_inventory_markdown(
     total_new: int,
 ) -> str:
     """把库存动态转换成企业微信 markdown。"""
-    page_range = "1" if task.max_pages == 1 else f"1-{task.max_pages}"
     header = [
         f"**CSQAQ 库存动态 · {task.display_name}**",
-        "",
+        (
+            f"**新动态**：{color_text(str(total_new), 'warning')} 条 | "
+            f"**本批**：{color_text(str(len(trades)), 'info')} 条 | "
+            f"**批次**：{batch_index}/{batch_count}"
+        ),
         f"**任务ID**：{task.task_id}",
-        f"**请求参数**：{format_inventory_request_params(task, page_range)}",
-        f"**批次**：{batch_index}/{batch_count}，本批 {len(trades)} 条 / 新动态 {total_new} 条",
-        "[接口文档](https://docs.csqaq.com/api-358158458)",
-        "",
     ]
+
+    filter_summary = format_inventory_filter_summary(task)
+    if filter_summary:
+        header.append(f"**筛选**：{filter_summary}")
 
     lines = []
     for index, trade in enumerate(trades, start=1):
         market_name = clean_markdown_text(str(trade.get("market_name") or "未知饰品")).replace("\n", " ")
-        count = trade.get("count", "未知")
-        created_at = trade.get("created_at") or "未知时间"
+        count = str(trade.get("count", "未知"))
+        created_at = format_inventory_time(trade.get("created_at"))
         good_id = trade.get("good_id", "未知")
-        trade_type = describe_trade_type(trade.get("type", "未知"))
+        raw_type = trade.get("type", "未知")
+        trade_type = describe_trade_type(raw_type)
+        trade_type_display = color_text(trade_type, inventory_type_color(raw_type))
+        count_display = color_text(f"{count} 件", "info")
         tradable = describe_tradable(trade.get("tradable", "未知"))
         lines.append(
-            f"> {index}. **{market_name}** x {count}\n"
-            f"> 时间：{created_at} | 类型：{trade_type} | {tradable} | good_id：{good_id}"
+            f"**{index}. {trade_type_display} | {count_display} | {created_at}**\n"
+            f"> 饰品：**{market_name}**\n"
+            f"> 交易状态：{tradable} | good_id：{good_id}"
         )
 
-    content = "\n".join(header + lines)
+    content = "\n\n".join(header + lines)
     return truncate_utf8(content, WECHAT_MARKDOWN_MAX_BYTES)
 
 
