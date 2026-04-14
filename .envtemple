@@ -25,6 +25,7 @@ CSQAQ_INVENTORY_BATCH_SIZE=10
 CSQAQ_INVENTORY_SEND_INITIAL=false
 CSQAQ_INVENTORY_STATE_FILE=logs/csqaq_inventory_state.json
 
-# CSQAQ 文档目前只返回 type 数值，可按需覆盖成更可读文案。
-# 示例：CSQAQ_INVENTORY_TYPE_LABELS={"4":"减少","5":"新增","7":"变动"}
+# 默认输出：0=默认库存，4=取出组件，5=cd恢复，7=卖出/存入组件。
+# 如需覆盖可填写 JSON，例如：
+# CSQAQ_INVENTORY_TYPE_LABELS={"0":"默认库存","4":"取出组件","5":"cd恢复","7":"卖出/存入组件"}
 CSQAQ_INVENTORY_TYPE_LABELS=

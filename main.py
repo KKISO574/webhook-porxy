@@ -345,12 +345,13 @@ def describe_tradable(value: Any) -> str:
 
 
 def describe_trade_type(value: Any) -> str:
-    """动态 type 目前文档只给出数值，保留原值并支持自定义映射。"""
+    """把 CSQAQ 库存动态 type 转成可读文案。"""
     labels = {
         "ALL": "全部动态",
-        "4": "动态类型 4",
-        "5": "动态类型 5",
-        "7": "动态类型 7",
+        "0": "默认库存",
+        "4": "取出组件",
+        "5": "cd恢复",
+        "7": "卖出/存入组件",
     }
     labels.update(CSQAQ_INVENTORY_TYPE_LABELS)
     raw = str(value)

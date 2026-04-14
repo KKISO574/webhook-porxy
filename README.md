@@ -19,7 +19,7 @@ SHOW_CSLOG_DETAIL=true
 - `page_size`：每页数量
 - `task_id`：库存监控任务 id
 - `search`：搜索关键词，可留空
-- `type`：动态类型过滤，默认 `ALL`
+- `type`：动态类型过滤，默认 `ALL`；当前输出映射为 `0=默认库存`、`4=取出组件`、`5=cd恢复`、`7=卖出/存入组件`
 
 推荐用 JSON 配置多个任务，每个任务会独立执行、独立去重，并按批次推送企业微信 markdown：
 ```env
@@ -45,13 +45,13 @@ CSQAQ_INVENTORY_TYPE=ALL
 - `CSQAQ_INVENTORY_BATCH_SIZE`：每条企业微信 markdown 最多包含多少条动态，默认 `10`
 - `CSQAQ_INVENTORY_SEND_INITIAL`：首次启动是否推送已存在的历史动态，默认 `false`；默认只记录基线，避免刷屏
 - `CSQAQ_INVENTORY_STATE_FILE`：去重状态文件，默认 `logs/csqaq_inventory_state.json`
-- `CSQAQ_INVENTORY_TYPE_LABELS`：自定义动态类型文案，例如 `{"4":"减少","5":"新增","7":"变动"}`
+- `CSQAQ_INVENTORY_TYPE_LABELS`：自定义动态类型文案，例如 `{"0":"默认库存","4":"取出组件","5":"cd恢复","7":"卖出/存入组件"}`
 
 服务接口：
 - `GET /csqaq/inventory/status`：查看库存监控配置和运行状态
 - `POST /csqaq/inventory/run`：立即执行一次所有库存监控任务，适合测试
 
-注意：CSQAQ 文档示例返回里的动态 `type` 只有数值，没有给出业务含义。服务默认保留为“动态类型 4/5/7”，如果你确认类型含义，可以用 `CSQAQ_INVENTORY_TYPE_LABELS` 覆盖成更可读的文案。
+注意：库存动态 `type` 默认输出为 `0=默认库存`、`4=取出组件`、`5=cd恢复`、`7=卖出/存入组件`。如果后续需要改文案，可以用 `CSQAQ_INVENTORY_TYPE_LABELS` 覆盖。
 
 首次启动建议执行：
 ```bash
