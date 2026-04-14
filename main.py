@@ -400,7 +400,11 @@ def format_inventory_markdown(
     total_new: int,
 ) -> str:
     """把库存动态转换成企业微信 markdown。"""
-    sorted_trades = sorted(trades, key=lambda trade: parse_created_at(trade.get("created_at")))
+    sorted_trades = sorted(
+        trades,
+        key=lambda trade: parse_created_at(trade.get("created_at")),
+        reverse=True,
+    )
     header = [
         f"**CSQAQ 库存动态 · {task.display_name}**",
         (
@@ -595,7 +599,7 @@ class InventoryMonitor:
                 "baseline": True,
             }
 
-        new_items.sort(key=lambda item: parse_created_at(item[0].get("created_at")))
+        new_items.sort(key=lambda item: parse_created_at(item[0].get("created_at")), reverse=True)
         if not new_items:
             self.mark_seen(task, [])
             self.save_state()
