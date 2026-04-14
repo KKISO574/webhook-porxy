@@ -2,3 +2,35 @@ WECHAT_WEBHOOK_URL=
 SHOW_CSLOG_SUMMARY=true
 SHOW_CSLOG_PAGED=true
 SHOW_CSLOG_DETAIL=true
+
+# Docker 构建依赖源。服务器访问 PyPI 慢时可改这里。
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+PIP_DEFAULT_TIMEOUT=120
+PIP_RETRIES=10
+
+# CSQAQ 库存监控
+# 接口文档：https://docs.csqaq.com/api-358158458
+# 填写后会按任务定时请求 /api/v1/task/get_task_business 并转发企业微信 markdown。
+CSQAQ_API_TOKEN=
+
+# 推荐填写 JSON 数组，每个对象对应一个库存监控任务。
+# 示例：
+# CSQAQ_INVENTORY_TASKS=[{"task_id":34,"name":"用户A-武器箱","search":"武器箱","type":"ALL","page_size":50,"max_pages":1},{"task_id":1431,"name":"用户B-全部动态","search":"","type":"ALL","page_size":50,"max_pages":1}]
+CSQAQ_INVENTORY_TASKS=
+
+# 简单模式：不填 CSQAQ_INVENTORY_TASKS 时，可用逗号分隔 task_id。
+CSQAQ_INVENTORY_TASK_IDS=
+CSQAQ_INVENTORY_SEARCH=
+CSQAQ_INVENTORY_TYPE=ALL
+
+CSQAQ_INVENTORY_INTERVAL_SECONDS=300
+CSQAQ_INVENTORY_PAGE_SIZE=50
+CSQAQ_INVENTORY_MAX_PAGES=1
+CSQAQ_INVENTORY_BATCH_SIZE=10
+CSQAQ_INVENTORY_SEND_INITIAL=false
+CSQAQ_INVENTORY_STATE_FILE=logs/csqaq_inventory_state.json
+
+# 默认输出：0=默认库存，4=取出组件，5=cd恢复，7=卖出/存入组件。
+# 如需覆盖可填写 JSON，例如：
+# CSQAQ_INVENTORY_TYPE_LABELS={"0":"默认库存","4":"取出组件","5":"cd恢复","7":"卖出/存入组件"}
+CSQAQ_INVENTORY_TYPE_LABELS=

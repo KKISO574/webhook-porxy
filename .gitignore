@@ -13,3 +13,5 @@ venv/
 *.swo
 *.zip
 *.tar.gz
+.git/
+.gitignore

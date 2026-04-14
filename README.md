@@ -8,9 +8,66 @@ SHOW_CSLOG_PAGED=true
 SHOW_CSLOG_DETAIL=true
 ```
 
+### CSQAQ 库存监控动态转发
+接口文档：`https://docs.csqaq.com/api-358158458`
+
+配置 `CSQAQ_API_TOKEN` 和库存监控任务后，服务会按间隔请求：
+`POST https://api.csqaq.com/api/v1/task/get_task_business`
+
+请求 Body 字段对应接口文档：
+- `page_index`：页码，服务会从第 1 页开始抓取
+- `page_size`：每页数量
+- `task_id`：库存监控任务 id
+- `search`：搜索关键词，可留空
+- `type`：动态类型过滤，默认 `ALL`；当前输出映射为 `0=默认库存`、`4=取出组件`、`5=cd恢复`、`7=卖出/存入组件`
+
+推荐用 JSON 配置多个任务，每个任务会独立执行、独立去重，并按批次推送企业微信 markdown：
+```env
+CSQAQ_API_TOKEN=你的CSQAQ_API_TOKEN
+CSQAQ_INVENTORY_INTERVAL_SECONDS=300
+CSQAQ_INVENTORY_BATCH_SIZE=10
+CSQAQ_INVENTORY_SEND_INITIAL=false
+CSQAQ_INVENTORY_TASKS=[{"task_id":34,"name":"用户A-武器箱","search":"武器箱","type":"ALL","page_size":50,"max_pages":1},{"task_id":1431,"name":"用户B-全部动态","search":"","type":"ALL","page_size":50,"max_pages":1}]
+```
+
+如果只需要按任务 id 监控，也可以用逗号分隔：
+```env
+CSQAQ_API_TOKEN=你的CSQAQ_API_TOKEN
+CSQAQ_INVENTORY_TASK_IDS=34,1431
+CSQAQ_INVENTORY_SEARCH=
+CSQAQ_INVENTORY_TYPE=ALL
+```
+
+常用配置：
+- `CSQAQ_INVENTORY_INTERVAL_SECONDS`：轮询间隔秒数，默认 `300`，最小 `30`
+- `CSQAQ_INVENTORY_PAGE_SIZE`：默认每页数量，默认 `50`
+- `CSQAQ_INVENTORY_MAX_PAGES`：每轮每个任务最多抓取页数，默认 `1`
+- `CSQAQ_INVENTORY_BATCH_SIZE`：每条企业微信 markdown 最多包含多少条动态，默认 `10`
+- `CSQAQ_INVENTORY_SEND_INITIAL`：首次启动是否推送已存在的历史动态，默认 `false`；默认只记录基线，避免刷屏
+- `CSQAQ_INVENTORY_STATE_FILE`：去重状态文件，默认 `logs/csqaq_inventory_state.json`
+- `CSQAQ_INVENTORY_TYPE_LABELS`：自定义动态类型文案，例如 `{"0":"默认库存","4":"取出组件","5":"cd恢复","7":"卖出/存入组件"}`
+
+服务接口：
+- `GET /csqaq/inventory/status`：查看库存监控配置和运行状态
+- `POST /csqaq/inventory/run`：立即执行一次所有库存监控任务，适合测试
+
+注意：库存动态 `type` 默认输出为 `0=默认库存`、`4=取出组件`、`5=cd恢复`、`7=卖出/存入组件`。如果后续需要改文案，可以用 `CSQAQ_INVENTORY_TYPE_LABELS` 覆盖。
+
 首次启动建议执行：
 ```bash
 docker compose up -d --build
+```
+
+如果构建时 `pip install` 访问 `files.pythonhosted.org` 超时，可以在 `.env` 里切换构建依赖源：
+```env
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+PIP_DEFAULT_TIMEOUT=120
+PIP_RETRIES=10
+```
+
+也可以改成其他镜像，例如阿里云：
+```env
+PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 ```
 
 服务启动后可访问健康检查：
