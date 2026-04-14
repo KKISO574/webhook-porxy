@@ -3,6 +3,11 @@ SHOW_CSLOG_SUMMARY=true
 SHOW_CSLOG_PAGED=true
 SHOW_CSLOG_DETAIL=true
 
+# Docker 构建依赖源。服务器访问 PyPI 慢时可改这里。
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+PIP_DEFAULT_TIMEOUT=120
+PIP_RETRIES=10
+
 # CSQAQ 库存监控
 # 接口文档：https://docs.csqaq.com/api-358158458
 # 填写后会按任务定时请求 /api/v1/task/get_task_business 并转发企业微信 markdown。

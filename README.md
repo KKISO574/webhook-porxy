@@ -58,6 +58,18 @@ CSQAQ_INVENTORY_TYPE=ALL
 docker compose up -d --build
 ```
 
+如果构建时 `pip install` 访问 `files.pythonhosted.org` 超时，可以在 `.env` 里切换构建依赖源：
+```env
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+PIP_DEFAULT_TIMEOUT=120
+PIP_RETRIES=10
+```
+
+也可以改成其他镜像，例如阿里云：
+```env
+PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+```
+
 服务启动后可访问健康检查：
 `http://localhost:8000/health`
 
