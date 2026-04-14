@@ -400,11 +400,12 @@ def format_inventory_markdown(
     total_new: int,
 ) -> str:
     """把库存动态转换成企业微信 markdown。"""
+    sorted_trades = sorted(trades, key=lambda trade: parse_created_at(trade.get("created_at")))
     header = [
         f"**CSQAQ 库存动态 · {task.display_name}**",
         (
             f"**新动态**：{color_text(str(total_new), 'warning')} 条 | "
-            f"**本批**：{color_text(str(len(trades)), 'info')} 条 | "
+            f"**本批**：{color_text(str(len(sorted_trades)), 'info')} 条 | "
             f"**批次**：{batch_index}/{batch_count}"
         ),
         f"**任务ID**：{task.task_id}",
@@ -415,7 +416,7 @@ def format_inventory_markdown(
         header.append(f"**筛选**：{filter_summary}")
 
     lines = []
-    for index, trade in enumerate(trades, start=1):
+    for index, trade in enumerate(sorted_trades, start=1):
         market_name = clean_markdown_text(str(trade.get("market_name") or "未知饰品")).replace("\n", " ")
         count = str(trade.get("count", "未知"))
         created_at = format_inventory_time(trade.get("created_at"))
