@@ -28,10 +28,29 @@ load_dotenv()
 
 app = FastAPI(title="Webhook → 企业微信转发服务")
 
+
+def parse_wechat_webhook_urls(value: str) -> list[str]:
+    """解析逗号或换行分隔的企业微信机器人 webhook 地址。"""
+    if not value:
+        return []
+    return [item.strip() for item in re.split(r"[,\n]+", value) if item.strip()]
+
+
+def load_wechat_webhook_urls() -> list[str]:
+    """读取企业微信机器人 webhook 地址，优先使用多机器人配置。"""
+    multi_urls = parse_wechat_webhook_urls(os.getenv("WECHAT_WEBHOOK_URLS", ""))
+    if multi_urls:
+        return multi_urls
+
+    legacy_url = os.getenv("WECHAT_WEBHOOK_URL", "").strip()
+    return [legacy_url] if legacy_url else []
+
+
 # 从环境变量读取 webhook 地址（不硬编码）
-WECHAT_WEBHOOK_URL = os.getenv("WECHAT_WEBHOOK_URL")
-if not WECHAT_WEBHOOK_URL:
-    raise ValueError("缺少环境变量 WECHAT_WEBHOOK_URL，请在 .env 文件中设置")
+WECHAT_WEBHOOK_URLS = load_wechat_webhook_urls()
+if not WECHAT_WEBHOOK_URLS:
+    raise ValueError("缺少环境变量 WECHAT_WEBHOOK_URL 或 WECHAT_WEBHOOK_URLS，请在 .env 文件中设置")
+WECHAT_WEBHOOK_URL = WECHAT_WEBHOOK_URLS[0]
 
 
 def env_flag(name: str, default: bool = True) -> bool:
@@ -192,26 +211,46 @@ def send_wechat_message(msgtype: str, content: str, mentioned_list: list[str] | 
             text_payload["mentioned_list"] = mentioned_list
         wechat_payload["text"] = text_payload
 
+    total_targets = len(WECHAT_WEBHOOK_URLS)
+    content_bytes = len(content.encode("utf-8"))
     logger.info(
-        f"即将发送到企业微信（类型: {msgtype}，长度: {len(content.encode('utf-8'))} 字节）:\n"
+        f"即将发送到 {total_targets} 个企业微信机器人（类型: {msgtype}，长度: {content_bytes} 字节）:\n"
         f"{content}\n"
         f"{'-' * 60}"
     )
 
-    resp = requests.post(
-        WECHAT_WEBHOOK_URL,
-        json=wechat_payload,
-        timeout=10
-    )
-    resp.raise_for_status()
+    results = []
+    failures = []
+    for index, webhook_url in enumerate(WECHAT_WEBHOOK_URLS, start=1):
+        try:
+            resp = requests.post(
+                webhook_url,
+                json=wechat_payload,
+                timeout=10
+            )
+            resp.raise_for_status()
 
-    wechat_resp = resp.json()
-    if wechat_resp.get("errcode") != 0:
-        logger.error(f"企业微信返回错误: {wechat_resp}")
-        raise RuntimeError(f"企业微信发送失败: {wechat_resp}")
+            wechat_resp = resp.json()
+            if wechat_resp.get("errcode") != 0:
+                raise RuntimeError(f"企业微信返回错误: {wechat_resp}")
 
-    logger.info("成功转发到企业微信群")
-    return wechat_resp
+            logger.info("成功转发到企业微信机器人 %s/%s", index, total_targets)
+            results.append({"index": index, "response": wechat_resp})
+        except requests.RequestException as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            error = f"{exc.__class__.__name__}" + (f" status={status_code}" if status_code else "")
+            logger.error("企业微信机器人 %s/%s 发送失败: %s", index, total_targets, error)
+            failures.append({"index": index, "error": error})
+        except Exception as exc:
+            error = str(exc)
+            logger.error("企业微信机器人 %s/%s 发送失败: %s", index, total_targets, error)
+            failures.append({"index": index, "error": error})
+
+    if failures:
+        raise RuntimeError(f"{len(failures)} 个企业微信机器人发送失败")
+
+    logger.info("成功转发到 %s 个企业微信机器人", len(results))
+    return {"sent": len(results), "failed": 0, "results": results}
 
 
 def normalize_positive_int(value: Any, default: int, min_value: int = 1) -> int:
