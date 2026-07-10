@@ -8,6 +8,14 @@ SHOW_CSLOG_PAGED=true
 SHOW_CSLOG_DETAIL=true
 ```
 
+如果要同时发送到多个企业微信机器人，配置 `WECHAT_WEBHOOK_URLS`，用逗号分隔。填写 `WECHAT_WEBHOOK_URLS` 后会优先使用它；`WECHAT_WEBHOOK_URL` 保留给单机器人兼容：
+```env
+WECHAT_WEBHOOK_URL=
+WECHAT_WEBHOOK_URLS=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=机器人1,https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=机器人2
+```
+
+发送时会对所有配置的机器人逐个发送同一条消息。如果其中某个机器人失败，服务会继续尝试剩余机器人，最后返回发送失败并在日志里标出失败的是第几个机器人。
+
 ### CSQAQ 库存监控动态转发
 接口文档：`https://docs.csqaq.com/api-358158458`
 
@@ -79,7 +87,8 @@ PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 ### 其他说明
 - 端口映射可以根据需要修改，默认是 `8000:8000`
 
-- 需要确保你的企业微信webhook地址正确，并且服务器能够访问到企业微信的服务器
+- 需要确保你的企业微信 webhook 地址正确，并且服务器能够访问到企业微信的服务器
+- 支持通过 `WECHAT_WEBHOOK_URLS` 同时推送到多个企业微信机器人；旧的 `WECHAT_WEBHOOK_URL` 单机器人配置仍然可用
 - 这个服务会持续运行，除非你手动停止它，适合长期使用来转发webhook信息
 - 如果需要查看日志，可以使用 `docker compose logs -f` 来实时查看日志输出
 - 如果需要更新代码，可以先停止服务，拉取最新代码，然后重新启动服务：

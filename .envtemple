@@ -1,4 +1,7 @@
 WECHAT_WEBHOOK_URL=
+# 多个企业微信机器人用逗号分隔；填写后优先于 WECHAT_WEBHOOK_URL。
+# 示例：WECHAT_WEBHOOK_URLS=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx,https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=yyy
+WECHAT_WEBHOOK_URLS=
 SHOW_CSLOG_SUMMARY=true
 SHOW_CSLOG_PAGED=true
 SHOW_CSLOG_DETAIL=true
